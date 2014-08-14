@@ -148,12 +148,21 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
             image = [UIImage imageNamed:[current valueForKey:@"imageName"]];
         }
         
-        if (![TSMessage iOS7StyleEnabled])
+        BOOL useBackgroundImage = [current[@"useBackgroundImage"] boolValue];
+        if (useBackgroundImage)
         {
-            self.alpha = 0.0;
-            
             // add background image here
-            UIImage *backgroundImage = [[UIImage imageNamed:[current valueForKey:@"backgroundImageName"]] stretchableImageWithLeftCapWidth:0.0 topCapHeight:0.0];
+            UIImage *backgroundImage = [UIImage imageNamed:[current valueForKey:@"backgroundImageName"]];
+            NSDictionary *edgeValues = [current objectForKey:@"backgroundImageCapInsets"];
+            if (edgeValues) {
+                UIEdgeInsets edgeInsets = UIEdgeInsetsMake([[edgeValues objectForKey:@"top"] floatValue],
+                                                           [[edgeValues objectForKey:@"left"] floatValue],
+                                                           [[edgeValues objectForKey:@"bottom"] floatValue],
+                                                           [[edgeValues objectForKey:@"right"] floatValue]);
+                backgroundImage = [backgroundImage resizableImageWithCapInsets:edgeInsets resizingMode:UIImageResizingModeStretch];
+            } else {
+                backgroundImage = [backgroundImage stretchableImageWithLeftCapWidth:0.0 topCapHeight:0.0];
+            }
             _backgroundImageView = [[UIImageView alloc] initWithImage:backgroundImage];
             self.backgroundImageView.autoresizingMask = (UIViewAutoresizingFlexibleWidth);
             [self addSubview:self.backgroundImageView];

@@ -8,6 +8,7 @@
 
 #import "TSMessage.h"
 #import "TSMessageView.h"
+#import <FLKAutoLayout/UIView+FLKAutoLayout.h>
 
 #define kTSMessageDisplayTime 1.5
 #define kTSMessageExtraDisplayTimePerPixel 0.04
@@ -19,6 +20,8 @@
 
 /** The queued messages (TSMessageView objects) */
 @property (nonatomic, strong) NSMutableArray *messages;
+
+@property (nonatomic, strong) NSLayoutConstraint *verticalConstraint;
 
 @end
 
@@ -235,29 +238,35 @@ __weak static UIViewController *_defaultViewController;
             addStatusBarHeightToVerticalOffset();
         }
     }
-
-    CGPoint toPoint;
-    if (currentView.messagePosition == TSMessageNotificationPositionTop)
-    {
-        CGFloat navigationbarBottomOfViewController = 0;
-
-        if (currentView.delegate && [currentView.delegate respondsToSelector:@selector(navigationbarBottomOfViewController:)])
-            navigationbarBottomOfViewController = [currentView.delegate navigationbarBottomOfViewController:currentView.viewController];
-
-        toPoint = CGPointMake(currentView.center.x,
-                              navigationbarBottomOfViewController + verticalOffset + CGRectGetHeight(currentView.frame) / 2.0);
-    }
-    else
-    {
-        CGFloat y = currentView.viewController.view.bounds.size.height - CGRectGetHeight(currentView.frame) / 2.0;
-        if (!currentView.viewController.navigationController.isToolbarHidden) {
-            y -= CGRectGetHeight(currentView.viewController.navigationController.toolbar.bounds);
-        }
-        toPoint = CGPointMake(currentView.center.x, y);
-    }
-
+    [currentView updateConstraintsIfNeeded];
+    [currentView layoutIfNeeded];
+    
     dispatch_block_t animationBlock = ^{
-        currentView.center = toPoint;
+        CGPoint toPoint;
+        if (currentView.messagePosition == TSMessageNotificationPositionTop)
+        {
+            CGFloat navigationbarBottomOfViewController = 0;
+            
+            if (currentView.delegate && [currentView.delegate respondsToSelector:@selector(navigationbarBottomOfViewController:)])
+                navigationbarBottomOfViewController = [currentView.delegate navigationbarBottomOfViewController:currentView.viewController];
+            
+            toPoint = CGPointMake(currentView.center.x,
+                                  navigationbarBottomOfViewController + verticalOffset + CGRectGetHeight(currentView.frame) / 2.0);
+        }
+        else
+        {
+            CGFloat y = currentView.viewController.view.bounds.size.height - CGRectGetHeight(currentView.frame) / 2.0;
+            if (!currentView.viewController.navigationController.isToolbarHidden) {
+                y -= CGRectGetHeight(currentView.viewController.navigationController.toolbar.bounds);
+            }
+            toPoint = CGPointMake(currentView.center.x, y);
+        }
+        
+
+        NSString *predicate = [NSString stringWithFormat:@"%f", verticalOffset];
+        self.verticalConstraint = [[currentView alignTopEdgeWithView:currentView.viewController.view predicate:predicate] firstObject];
+        [currentView layoutIfNeeded];
+        
         if (![TSMessage iOS7StyleEnabled]) {
             currentView.alpha = TSMessageViewAlpha;
         }
@@ -326,7 +335,7 @@ __weak static UIViewController *_defaultViewController;
     CGPoint fadeOutToPoint;
     if (currentView.messagePosition == TSMessageNotificationPositionTop)
     {
-        fadeOutToPoint = CGPointMake(currentView.center.x, -CGRectGetHeight(currentView.frame)/2.f);
+        self.verticalConstraint.constant = -CGRectGetHeight(currentView.frame);
     }
     else
     {
@@ -336,7 +345,8 @@ __weak static UIViewController *_defaultViewController;
 
     [UIView animateWithDuration:kTSMessageAnimationDuration animations:^
      {
-         currentView.center = fadeOutToPoint;
+         [currentView layoutIfNeeded];
+
          if (![TSMessage iOS7StyleEnabled]) {
              currentView.alpha = 0.f;
          }
@@ -357,6 +367,7 @@ __weak static UIViewController *_defaultViewController;
          }
 
          if(animationFinished) {
+             
              animationFinished();
          }
      }];

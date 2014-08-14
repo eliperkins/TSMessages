@@ -433,7 +433,7 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
             if (!navigationController && [self.viewController isKindOfClass:[UINavigationController class]]) {
                 navigationController = (UINavigationController *)self.viewController;
             }
-            BOOL isNavBarIsHidden = !navigationController || [TSMessage isNavigationBarInNavigationControllerHidden:navigationController];
+            BOOL isNavBarIsHidden = [TSMessage isNavigationBarInNavigationControllerHidden:navigationController];
             BOOL isNavBarIsOpaque = !navigationController.navigationBar.isTranslucent && navigationController.navigationBar.alpha == 1;
             
             if (isNavBarIsHidden || isNavBarIsOpaque) {

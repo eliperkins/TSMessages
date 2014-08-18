@@ -10,9 +10,14 @@
 #import "HexColor.h"
 #import "TSBlurView.h"
 #import "TSMessage.h"
+#import <FLKAutoLayout/UIView+FLKAutoLayout.h>
 
 
 #define TSMessageViewPadding 15.0
+
+#define TSMessageVerticalOuterPadding 12.0f
+#define TSMessageHorizontalOuterPadding 15.0f
+#define TSMessageTitleSubtitlePadding 4.0f
 
 #define TSDesignFileName @"TSMessagesDefaultDesign.json"
 
@@ -49,6 +54,8 @@ static NSMutableDictionary *_notificationDesign;
 
 @property (nonatomic, assign) CGFloat textSpaceLeft;
 @property (nonatomic, assign) CGFloat textSpaceRight;
+
+@property (nonatomic, assign) TSMessageNotificationType type;
 
 @property (copy) void (^callback)();
 @property (copy) void (^buttonCallback)();
@@ -107,10 +114,10 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
         _duration = duration;
         _viewController = viewController;
         _messagePosition = position;
+        _type = notificationType;
         self.callback = callback;
         self.buttonCallback = buttonCallback;
         
-        CGFloat screenWidth = self.viewController.view.bounds.size.width;
         NSDictionary *current;
         NSString *currentString;
         switch (notificationType)
@@ -148,21 +155,28 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
             image = [UIImage imageNamed:[current valueForKey:@"imageName"]];
         }
         
-        if (![TSMessage iOS7StyleEnabled])
+        BOOL useBackgroundImage = [current[@"useBackgroundImage"] boolValue];
+        if (useBackgroundImage)
         {
-            self.alpha = 0.0;
-            
             // add background image here
-            UIImage *backgroundImage = [[UIImage imageNamed:[current valueForKey:@"backgroundImageName"]] stretchableImageWithLeftCapWidth:0.0 topCapHeight:0.0];
+            UIImage *backgroundImage = [UIImage imageNamed:[current valueForKey:@"backgroundImageName"]];
+            NSDictionary *edgeValues = [current objectForKey:@"backgroundImageCapInsets"];
+            if (edgeValues) {
+                UIEdgeInsets edgeInsets = UIEdgeInsetsMake([[edgeValues objectForKey:@"top"] floatValue],
+                                                           [[edgeValues objectForKey:@"left"] floatValue],
+                                                           [[edgeValues objectForKey:@"bottom"] floatValue],
+                                                           [[edgeValues objectForKey:@"right"] floatValue]);
+                backgroundImage = [backgroundImage resizableImageWithCapInsets:edgeInsets resizingMode:UIImageResizingModeStretch];
+            } else {
+                backgroundImage = [backgroundImage stretchableImageWithLeftCapWidth:0.0 topCapHeight:0.0];
+            }
             _backgroundImageView = [[UIImageView alloc] initWithImage:backgroundImage];
-            self.backgroundImageView.autoresizingMask = (UIViewAutoresizingFlexibleWidth);
             [self addSubview:self.backgroundImageView];
         }
         else
         {
             // On iOS 7 and above use a blur layer instead (not yet finished)
             _backgroundBlurView = [[TSBlurView alloc] init];
-            self.backgroundBlurView.autoresizingMask = (UIViewAutoresizingFlexibleWidth);
             self.backgroundBlurView.blurTintColor = [UIColor colorWithHexString:current[@"backgroundColor"]];
             [self addSubview:self.backgroundBlurView];
         }
@@ -224,10 +238,6 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
         if (image)
         {
             _iconImageView = [[UIImageView alloc] initWithImage:image];
-            self.iconImageView.frame = CGRectMake(TSMessageViewPadding * 2,
-                                                  TSMessageViewPadding,
-                                                  image.size.width,
-                                                  image.size.height);
             [self addSubview:self.iconImageView];
         }
         
@@ -270,10 +280,6 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
             
             self.button.contentEdgeInsets = UIEdgeInsetsMake(0.0, 5.0, 0.0, 5.0);
             [self.button sizeToFit];
-            self.button.frame = CGRectMake(screenWidth - TSMessageViewPadding - self.button.frame.size.width,
-                                           0.0,
-                                           self.button.frame.size.width,
-                                           31.0);
             
             [self addSubview:self.button];
             
@@ -283,35 +289,14 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
         // Add a border on the bottom (or on the top, depending on the view's postion)
         if (![TSMessage iOS7StyleEnabled])
         {
-            _borderView = [[UIView alloc] initWithFrame:CGRectMake(0.0,
-                                                                   0.0, // will be set later
-                                                                   screenWidth,
-                                                                   [[current valueForKey:@"borderHeight"] floatValue])];
+            _borderView = [[UIView alloc] initWithFrame:CGRectZero];
             self.borderView.backgroundColor = [UIColor colorWithHexString:[current valueForKey:@"borderColor"]
                                                                     alpha:1.0];
-            self.borderView.autoresizingMask = (UIViewAutoresizingFlexibleWidth);
             [self addSubview:self.borderView];
         }
         
-        
-        CGFloat actualHeight = [self updateHeightOfMessageView]; // this call also takes care of positioning the labels
-        CGFloat topPosition = -actualHeight;
-        
-        if (self.messagePosition == TSMessageNotificationPositionBottom)
-        {
-            topPosition = self.viewController.view.bounds.size.height;
-        }
-        
-        self.frame = CGRectMake(0.0, topPosition, screenWidth, actualHeight);
-        
-        if (self.messagePosition == TSMessageNotificationPositionTop)
-        {
-            self.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-        }
-        else
-        {
-            self.autoresizingMask = (UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin);
-        }
+        self.translatesAutoresizingMaskIntoConstraints = NO;
+        [self updateConstraints];
         
         if (dismissingEnabled)
         {
@@ -336,118 +321,20 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
     return self;
 }
 
-
-- (CGFloat)updateHeightOfMessageView
-{
-    CGFloat currentHeight;
-    CGFloat screenWidth = self.viewController.view.bounds.size.width;
-    
-    
-    self.titleLabel.frame = CGRectMake(self.textSpaceLeft,
-                                       TSMessageViewPadding,
-                                       screenWidth - TSMessageViewPadding - self.textSpaceLeft - self.textSpaceRight,
-                                       0.0);
-    [self.titleLabel sizeToFit];
-    
-    if ([self.subtitle length])
-    {
-        self.contentLabel.frame = CGRectMake(self.textSpaceLeft,
-                                             self.titleLabel.frame.origin.y + self.titleLabel.frame.size.height + 5.0,
-                                             screenWidth - TSMessageViewPadding - self.textSpaceLeft - self.textSpaceRight,
-                                             0.0);
-        [self.contentLabel sizeToFit];
-        
-        currentHeight = self.contentLabel.frame.origin.y + self.contentLabel.frame.size.height;
-    }
-    else
-    {
-        // only the title was set
-        currentHeight = self.titleLabel.frame.origin.y + self.titleLabel.frame.size.height;
-    }
-    
-    currentHeight += TSMessageViewPadding;
-    
-    if (self.iconImageView)
-    {
-        // Check if that makes the popup larger (height)
-        if (self.iconImageView.frame.origin.y + self.iconImageView.frame.size.height + TSMessageViewPadding > currentHeight)
-        {
-            currentHeight = self.iconImageView.frame.origin.y + self.iconImageView.frame.size.height + TSMessageViewPadding;
-        }
-        else
-        {
-            // z-align
-            self.iconImageView.center = CGPointMake([self.iconImageView center].x,
-                                                    round(currentHeight / 2.0));
-        }
-    }
-    
-    // z-align button
-    self.button.center = CGPointMake([self.button center].x,
-                                     round(currentHeight / 2.0));
-    
-    if (self.messagePosition == TSMessageNotificationPositionTop)
-    {
-        // Correct the border position
-        CGRect borderFrame = self.borderView.frame;
-        borderFrame.origin.y = currentHeight;
-        self.borderView.frame = borderFrame;
-    }
-    
-    currentHeight += self.borderView.frame.size.height;
-    
-    self.frame = CGRectMake(0.0, self.frame.origin.y, self.frame.size.width, currentHeight);
-    
-    
-    if (self.button)
-    {
-        self.button.frame = CGRectMake(self.frame.size.width - self.textSpaceRight,
-                                       round((self.frame.size.height / 2.0) - self.button.frame.size.height / 2.0),
-                                       self.button.frame.size.width,
-                                       self.button.frame.size.height);
-    }
-    
-    
-    CGRect backgroundFrame = CGRectMake(self.backgroundImageView.frame.origin.x,
-                                        self.backgroundImageView.frame.origin.y,
-                                        screenWidth,
-                                        currentHeight);
-    
-    // increase frame of background view because of the spring animation
-    if ([TSMessage iOS7StyleEnabled])
-    {
-        if (self.messagePosition == TSMessageNotificationPositionTop)
-        {
-            float topOffset = 0.f;
-            
-            UINavigationController *navigationController = self.viewController.navigationController;
-            if (!navigationController && [self.viewController isKindOfClass:[UINavigationController class]]) {
-                navigationController = (UINavigationController *)self.viewController;
-            }
-            BOOL isNavBarIsHidden = !navigationController || [TSMessage isNavigationBarInNavigationControllerHidden:navigationController];
-            BOOL isNavBarIsOpaque = !navigationController.navigationBar.isTranslucent && navigationController.navigationBar.alpha == 1;
-            
-            if (isNavBarIsHidden || isNavBarIsOpaque) {
-                topOffset = -30.f;
-            }
-            backgroundFrame = UIEdgeInsetsInsetRect(backgroundFrame, UIEdgeInsetsMake(topOffset, 0.f, 0.f, 0.f));
-        }
-        else if (self.messagePosition == TSMessageNotificationPositionBottom)
-        {
-            backgroundFrame = UIEdgeInsetsInsetRect(backgroundFrame, UIEdgeInsetsMake(0.f, 0.f, -30.f, 0.f));
-        }
-    }
-    
-    self.backgroundImageView.frame = backgroundFrame;
-    self.backgroundBlurView.frame = backgroundFrame;
-    
-    return currentHeight;
-}
-
 - (void)layoutSubviews
 {
+    [self updateConstraints];
+
     [super layoutSubviews];
-    [self updateHeightOfMessageView];
+    
+    CGFloat availableLabelWidth = self.contentLabel.frame.size.width;
+    self.contentLabel.preferredMaxLayoutWidth = availableLabelWidth;
+    availableLabelWidth = self.titleLabel.frame.size.width;
+    self.titleLabel.preferredMaxLayoutWidth = availableLabelWidth;
+
+    [self invalidateIntrinsicContentSize];
+
+    [super layoutSubviews];
 }
 
 - (void)fadeMeOut
@@ -462,6 +349,98 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
         [self fadeMeOut];
     }
 }
+
+- (void)updateConstraints {
+    NSDictionary *current;
+    NSString *currentString;
+    switch (self.type)
+    {
+        case TSMessageNotificationTypeMessage:
+        {
+            currentString = @"message";
+            break;
+        }
+        case TSMessageNotificationTypeError:
+        {
+            currentString = @"error";
+            break;
+        }
+        case TSMessageNotificationTypeSuccess:
+        {
+            currentString = @"success";
+            break;
+        }
+        case TSMessageNotificationTypeWarning:
+        {
+            currentString = @"warning";
+            break;
+        }
+            
+        default:
+            break;
+    }
+    NSDictionary *notificationDesign = [TSMessageView notificationDesign];
+    current = [notificationDesign valueForKey:currentString];
+
+    NSString *verticalPredicate = [NSString stringWithFormat:@"%f", TSMessageVerticalOuterPadding];
+    NSString *imageTextPaddingPredicate = [NSString stringWithFormat:@"%f", TSMessageHorizontalOuterPadding];
+    NSString *titleSubtitleSpacingPredicate = [NSString stringWithFormat:@"%f", TSMessageTitleSubtitlePadding];
+    NSString *imagePaddingPredicate = [NSString stringWithFormat:@"%f", (TSMessageHorizontalOuterPadding * 2)];
+    NSString *trailingPredicate = [NSString stringWithFormat:@"<=-%f", (TSMessageHorizontalOuterPadding * 2)];
+    NSString *optionalLeadingPaddingPredicate = [NSString stringWithFormat:@"%f", (TSMessageHorizontalOuterPadding * 2)];
+
+    [self.backgroundImageView alignToView:self];
+    [self.backgroundBlurView alignToView:self];
+
+    if (self.iconImageView) {
+        [self.iconImageView alignLeadingEdgeWithView:self predicate:imagePaddingPredicate];
+        [self.iconImageView alignTopEdgeWithView:self predicate:verticalPredicate];
+        
+        [self.iconImageView constrainWidth:@"25" height:@"25"];
+        [self.titleLabel constrainLeadingSpaceToView:self.iconImageView predicate:imageTextPaddingPredicate];
+        [self.contentLabel constrainLeadingSpaceToView:self.iconImageView predicate:imageTextPaddingPredicate];
+    } else {
+        [self.titleLabel alignLeadingEdgeWithView:self predicate:optionalLeadingPaddingPredicate];
+        [self.contentLabel alignLeadingEdgeWithView:self predicate:optionalLeadingPaddingPredicate];
+    }
+    
+    [self.borderView alignLeading:@"0" trailing:@"0" toView:self];
+    [self.borderView constrainHeight:[[current valueForKey:@"borderHeight"] stringValue]];
+    [self.borderView alignBottomEdgeWithView:self predicate:@"0"];
+    
+    [self.titleLabel alignTrailingEdgeWithView:self predicate:trailingPredicate];
+    [self.titleLabel alignTopEdgeWithView:self predicate:verticalPredicate];
+    
+    [self.contentLabel alignTrailingEdgeWithView:self predicate:trailingPredicate];
+    [self.contentLabel constrainTopSpaceToView:self.titleLabel predicate:titleSubtitleSpacingPredicate];
+    
+    if (self.superview) {
+        [self alignLeading:@"0" trailing:@"0" toView:self.superview];
+    }
+    
+    [super updateConstraints];
+}
+
+- (CGSize)intrinsicContentSize {
+    CGFloat totalHeight = (TSMessageVerticalOuterPadding * 2);
+    
+    BOOL hasTitle = self.title && ![self.title isEqualToString:@""];
+    BOOL hasSubtitle = self.subtitle && ![self.subtitle isEqualToString:@""];
+    
+    if (hasTitle) {
+        CGFloat titleHeight = self.titleLabel.intrinsicContentSize.height;
+        totalHeight += titleHeight;
+    }
+    
+    if (hasSubtitle) {
+        totalHeight += TSMessageTitleSubtitlePadding;
+        CGFloat contentHeight = self.contentLabel.intrinsicContentSize.height;
+        totalHeight += contentHeight;
+    }
+    
+    return CGSizeMake(320.0f, fmaxf(totalHeight, 50));
+}
+
 #pragma mark - Target/Action
 
 - (void)buttonTapped:(id) sender

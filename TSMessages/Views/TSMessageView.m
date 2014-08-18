@@ -15,6 +15,10 @@
 
 #define TSMessageViewPadding 15.0
 
+#define TSMessageVerticalOuterPadding 12.0f
+#define TSMessageHorizontalOuterPadding 15.0f
+#define TSMessageTitleSubtitlePadding 4.0f
+
 #define TSDesignFileName @"TSMessagesDefaultDesign.json"
 
 
@@ -322,8 +326,12 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
     [self updateConstraints];
 
     [super layoutSubviews];
-    CGFloat availableLabelWidth = self.titleLabel.frame.size.width;
+    
+    CGFloat availableLabelWidth = self.contentLabel.frame.size.width;
+    self.contentLabel.preferredMaxLayoutWidth = availableLabelWidth;
+    availableLabelWidth = self.titleLabel.frame.size.width;
     self.titleLabel.preferredMaxLayoutWidth = availableLabelWidth;
+
     [self invalidateIntrinsicContentSize];
 
     [super layoutSubviews];
@@ -374,30 +382,32 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
     NSDictionary *notificationDesign = [TSMessageView notificationDesign];
     current = [notificationDesign valueForKey:currentString];
 
+    NSString *verticalPredicate = [NSString stringWithFormat:@"%f", TSMessageVerticalOuterPadding];
+    NSString *horizontalPredicate = [NSString stringWithFormat:@"%f", TSMessageHorizontalOuterPadding];
+    NSString *titleSubtitleSpacingPredicate = [NSString stringWithFormat:@"%f", TSMessageTitleSubtitlePadding];
+    NSString *imagePaddingPredicate = [NSString stringWithFormat:@"%f", (TSMessageHorizontalOuterPadding * 2)];
+    NSString *trailingPredicate = [NSString stringWithFormat:@"<=-%f", (TSMessageHorizontalOuterPadding * 2)];
+
     [self.backgroundImageView alignToView:self];
     [self.backgroundBlurView alignToView:self];
 
-    [self.iconImageView alignLeadingEdgeWithView:self predicate:@"30"];
-    [self.iconImageView alignTopEdgeWithView:self predicate:@"12"];
+    [self.iconImageView alignLeadingEdgeWithView:self predicate:imagePaddingPredicate];
+    [self.iconImageView alignTopEdgeWithView:self predicate:verticalPredicate];
     
     [self.iconImageView constrainWidth:@"25" height:@"25"];
-    
-//    self.button.frame = CGRectMake(screenWidth - TSMessageViewPadding - self.button.frame.size.width,
-//                                   0.0,
-//                                   self.button.frame.size.width,
-//                                   31.0);
 
     [self.borderView alignLeading:@"0" trailing:@"0" toView:self];
     [self.borderView constrainHeight:[[current valueForKey:@"borderHeight"] stringValue]];
     [self.borderView alignBottomEdgeWithView:self predicate:@"0"];
-
-    [self.titleLabel constrainLeadingSpaceToView:self.iconImageView predicate:@"15"];
-    [self.titleLabel alignTrailingEdgeWithView:self predicate:@"<=-30"];
-    [self.titleLabel alignCenterYWithView:self predicate:@"0"];
-    [self.titleLabel setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisVertical];
-    [self.titleLabel setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
-    [self.titleLabel setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisVertical];
-    [self.titleLabel setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+    
+    [self.titleLabel constrainLeadingSpaceToView:self.iconImageView predicate:horizontalPredicate];
+    [self.titleLabel alignTrailingEdgeWithView:self predicate:trailingPredicate];
+    [self.titleLabel alignTopEdgeWithView:self predicate:verticalPredicate];
+    
+    [self.contentLabel constrainLeadingSpaceToView:self.iconImageView predicate:horizontalPredicate];
+    [self.contentLabel alignTrailingEdgeWithView:self predicate:trailingPredicate];
+    [self.contentLabel constrainTopSpaceToView:self.titleLabel predicate:titleSubtitleSpacingPredicate];
+    
     if (self.superview) {
         [self alignLeading:@"0" trailing:@"0" toView:self.superview];
     }
@@ -406,8 +416,23 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
 }
 
 - (CGSize)intrinsicContentSize {
-    CGFloat titleHeight = self.titleLabel.intrinsicContentSize.height + (20 * 2);
-    return CGSizeMake(320.0f, fmaxf(titleHeight, 50));
+    CGFloat totalHeight = (TSMessageVerticalOuterPadding * 2);
+    
+    BOOL hasTitle = self.title && ![self.title isEqualToString:@""];
+    BOOL hasSubtitle = self.subtitle && ![self.subtitle isEqualToString:@""];
+    
+    if (hasTitle) {
+        CGFloat titleHeight = self.titleLabel.intrinsicContentSize.height;
+        totalHeight += titleHeight;
+    }
+    
+    if (hasSubtitle) {
+        totalHeight += TSMessageTitleSubtitlePadding;
+        CGFloat contentHeight = self.contentLabel.intrinsicContentSize.height;
+        totalHeight += contentHeight;
+    }
+    
+    return CGSizeMake(320.0f, fmaxf(totalHeight, 50));
 }
 
 #pragma mark - Target/Action

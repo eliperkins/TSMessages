@@ -383,28 +383,34 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
     current = [notificationDesign valueForKey:currentString];
 
     NSString *verticalPredicate = [NSString stringWithFormat:@"%f", TSMessageVerticalOuterPadding];
-    NSString *horizontalPredicate = [NSString stringWithFormat:@"%f", TSMessageHorizontalOuterPadding];
+    NSString *imageTextPaddingPredicate = [NSString stringWithFormat:@"%f", TSMessageHorizontalOuterPadding];
     NSString *titleSubtitleSpacingPredicate = [NSString stringWithFormat:@"%f", TSMessageTitleSubtitlePadding];
     NSString *imagePaddingPredicate = [NSString stringWithFormat:@"%f", (TSMessageHorizontalOuterPadding * 2)];
     NSString *trailingPredicate = [NSString stringWithFormat:@"<=-%f", (TSMessageHorizontalOuterPadding * 2)];
+    NSString *optionalLeadingPaddingPredicate = [NSString stringWithFormat:@"%f", (TSMessageHorizontalOuterPadding * 2)];
 
     [self.backgroundImageView alignToView:self];
     [self.backgroundBlurView alignToView:self];
 
-    [self.iconImageView alignLeadingEdgeWithView:self predicate:imagePaddingPredicate];
-    [self.iconImageView alignTopEdgeWithView:self predicate:verticalPredicate];
+    if (self.iconImageView) {
+        [self.iconImageView alignLeadingEdgeWithView:self predicate:imagePaddingPredicate];
+        [self.iconImageView alignTopEdgeWithView:self predicate:verticalPredicate];
+        
+        [self.iconImageView constrainWidth:@"25" height:@"25"];
+        [self.titleLabel constrainLeadingSpaceToView:self.iconImageView predicate:imageTextPaddingPredicate];
+        [self.contentLabel constrainLeadingSpaceToView:self.iconImageView predicate:imageTextPaddingPredicate];
+    } else {
+        [self.titleLabel alignLeadingEdgeWithView:self predicate:optionalLeadingPaddingPredicate];
+        [self.contentLabel alignLeadingEdgeWithView:self predicate:optionalLeadingPaddingPredicate];
+    }
     
-    [self.iconImageView constrainWidth:@"25" height:@"25"];
-
     [self.borderView alignLeading:@"0" trailing:@"0" toView:self];
     [self.borderView constrainHeight:[[current valueForKey:@"borderHeight"] stringValue]];
     [self.borderView alignBottomEdgeWithView:self predicate:@"0"];
     
-    [self.titleLabel constrainLeadingSpaceToView:self.iconImageView predicate:horizontalPredicate];
     [self.titleLabel alignTrailingEdgeWithView:self predicate:trailingPredicate];
     [self.titleLabel alignTopEdgeWithView:self predicate:verticalPredicate];
     
-    [self.contentLabel constrainLeadingSpaceToView:self.iconImageView predicate:horizontalPredicate];
     [self.contentLabel alignTrailingEdgeWithView:self predicate:trailingPredicate];
     [self.contentLabel constrainTopSpaceToView:self.titleLabel predicate:titleSubtitleSpacingPredicate];
     

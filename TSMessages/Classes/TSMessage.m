@@ -237,34 +237,31 @@ __weak static UIViewController *_defaultViewController;
         if ([TSMessage iOS7StyleEnabled]) {
             addStatusBarHeightToVerticalOffset();
         }
+        
+        if (currentView.messagePosition == TSMessageNotificationPositionTop) {
+            self.verticalConstraint = [[currentView alignTopEdgeWithView:currentView.viewController.view predicate:@"0"] firstObject];
+        } else {
+            self.verticalConstraint = [[currentView alignBottomEdgeWithView:currentView.viewController.view predicate:@"0"] firstObject];
+        }
+        
     }
     [currentView updateConstraintsIfNeeded];
     [currentView layoutIfNeeded];
     
+    if (currentView.messagePosition == TSMessageNotificationPositionTop) {
+        self.verticalConstraint.constant = -CGRectGetHeight(currentView.frame);
+    }
+    else {
+        self.verticalConstraint.constant = CGRectGetHeight(currentView.frame) * 2;
+    }
+
     dispatch_block_t animationBlock = ^{
-        CGPoint toPoint;
-        if (currentView.messagePosition == TSMessageNotificationPositionTop)
-        {
-            CGFloat navigationbarBottomOfViewController = 0;
-            
-            if (currentView.delegate && [currentView.delegate respondsToSelector:@selector(navigationbarBottomOfViewController:)])
-                navigationbarBottomOfViewController = [currentView.delegate navigationbarBottomOfViewController:currentView.viewController];
-            
-            toPoint = CGPointMake(currentView.center.x,
-                                  navigationbarBottomOfViewController + verticalOffset + CGRectGetHeight(currentView.frame) / 2.0);
-        }
-        else
-        {
-            CGFloat y = currentView.viewController.view.bounds.size.height - CGRectGetHeight(currentView.frame) / 2.0;
-            if (!currentView.viewController.navigationController.isToolbarHidden) {
-                y -= CGRectGetHeight(currentView.viewController.navigationController.toolbar.bounds);
-            }
-            toPoint = CGPointMake(currentView.center.x, y);
+        if (currentView.messagePosition == TSMessageNotificationPositionTop) {
+            self.verticalConstraint.constant = verticalOffset;
+        } else {
+            self.verticalConstraint.constant = 0.0f;
         }
         
-
-        NSString *predicate = [NSString stringWithFormat:@"%f", verticalOffset];
-        self.verticalConstraint = [[currentView alignTopEdgeWithView:currentView.viewController.view predicate:predicate] firstObject];
         [currentView layoutIfNeeded];
         
         if (![TSMessage iOS7StyleEnabled]) {
@@ -339,8 +336,7 @@ __weak static UIViewController *_defaultViewController;
     }
     else
     {
-        fadeOutToPoint = CGPointMake(currentView.center.x,
-                                     currentView.viewController.view.bounds.size.height + CGRectGetHeight(currentView.frame)/2.f);
+        self.verticalConstraint.constant = CGRectGetHeight(currentView.frame) * 2;
     }
 
     [UIView animateWithDuration:kTSMessageAnimationDuration animations:^
